@@ -1710,6 +1710,24 @@ function interpreter:api_builtin_includes(...)
                 found = true
             end
         end
+        -- attempt to find files from environment variable
+        -- e.g. includes("@env:PATH")
+        if subpath:startswith("@env:") then
+            local env_path = subpath:sub(6)
+            local env_value = os.getenv(env_path)
+            local files
+            if env_value then
+                if env_value:endswith(".lua") then
+                    files = os.files(env_value)
+                else
+                    files = os.files(path.join(env_value, "xmake.lua"))
+                end
+                if files and #files > 0 then
+                    table.join2(subpaths_matched, files)
+                    found = true
+                end
+            end
+        end
         -- find the given files from the project directory
         if not found then
             local files = os.match(subpath, not subpath:endswith(".lua"))
