@@ -25,6 +25,7 @@ import("core.base.object")
 import("core.base.global")
 import("core.base.option")
 import("core.base.hashset")
+import("core.base.process")
 import("core.base.scheduler")
 import("private.service.server_config", {alias = "config"})
 import("private.service.message")
@@ -259,11 +260,15 @@ function server_session:runcmd(respmsg)
     if os.isfile(path.join(self:xmake_sourcedir(), "core", "main.lua")) then
         xmakesrc = self:xmake_sourcedir()
     end
-    try { function ()
-        os.execv(program, argv, {curdir = self:sourcedir(),
-            stdout = stdout_wpipe, stderr = stdout_wpipe, stdin = stdin_rpipe,
-            envs = {XMAKE_IN_SERVICE = "true", XMAKE_PROGRAM_DIR = xmakesrc}})
-    end}
+    local proc = process.openv(program, argv, {curdir = self:sourcedir(),
+        stdout = stdout_wpipe, stderr = stdout_wpipe, stdin = stdin_rpipe,
+        envs = {XMAKE_IN_SERVICE = "true", XMAKE_PROGRAM_DIR = xmakesrc}})
+    if proc then
+        stdin_wpipeopt.proc = proc
+        stdout_rpipeopt.proc = proc
+        proc:wait(-1)
+        proc:close()
+    end
     stdin_rpipe:close()
     stdout_wpipe:close()
 
@@ -356,6 +361,9 @@ function server_session:_write_pipe(opt)
                 break
             end
         else
+            if opt.proc then
+                opt.proc:kill()
+            end
             break
         end
     end
@@ -382,6 +390,9 @@ function server_session:_read_pipe(opt)
                 end
             end
             if not self:_send_data(data) then
+                if opt.proc then
+                    opt.proc:kill()
+                end
                 break
             end
         elseif real == 0 then
